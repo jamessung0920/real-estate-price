@@ -1,6 +1,6 @@
 const fs = require("fs/promises");
-const path = require("path");
 const axios = require("axios");
+const { v4: uuidv4 } = require("uuid");
 // const puppeteer = require("puppeteer");
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
@@ -11,8 +11,6 @@ const config = require("./config");
 const instruction = require("./instruction");
 
 puppeteer.use(StealthPlugin());
-
-const SCREENSHOT_PATH = "/app/downloads";
 
 /** example request body
 {
@@ -31,6 +29,8 @@ const SCREENSHOT_PATH = "/app/downloads";
 */
 async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
   console.log(reqBody.events);
+  const randomDirName = uuidv4();
+  const screenShotPath = `/app/downloads/${randomDirName}`;
   if (Array.isArray(reqBody.events) && reqBody.events.length === 0) return;
 
   Promise.allSettled(
@@ -80,18 +80,22 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
           let buildCaseName;
           if (step === "PRESALE") buildCaseName = userInputArray[2];
 
-          await visitSite(city, district, buildCaseName);
+          await visitSite(city, district, buildCaseName, screenShotPath);
 
-          const files = await fs.readdir(SCREENSHOT_PATH);
-          const screenShotFiles = files.filter((fileName) =>
-            fileName.startsWith("scrnsht_")
-          );
+          const files = await fs.readdir(screenShotPath);
+          const screenShotFiles = files
+            .filter((fileName) => fileName.startsWith("scrnsht_"))
+            .sort((b, c) => {
+              if (b > c) return 1;
+              if (c > b) return -1;
+              return 0;
+            });
 
           for (const file of screenShotFiles) {
             messageObjects.push({
               type: "image",
-              originalContentUrl: `https://${headers.host}/static/${file}`,
-              previewImageUrl: `https://${headers.host}/static/${file}`,
+              originalContentUrl: `https://${headers.host}/static/${randomDirName}/${file}`,
+              previewImageUrl: `https://${headers.host}/static/${randomDirName}/${file}`,
             });
           }
 
@@ -113,21 +117,11 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
           },
         }
       );
-
-      if (
-        userInput !== constants.RICH_MENU_ACTION.BUYSELL &&
-        userInput !== constants.RICH_MENU_ACTION.PRESALE
-      ) {
-        const files = await fs.readdir(SCREENSHOT_PATH);
-        Promise.all(
-          files.map((filename) => fs.unlink(`${SCREENSHOT_PATH}/${filename}`))
-        );
-      }
     })
   ).catch((err) => console.error(err));
 }
 
-async function visitSite(city, district, buildCaseName) {
+async function visitSite(city, district, buildCaseName, screenShotPath) {
   const browser = await puppeteer.launch({
     // headless: false,
     args: ["--no-sandbox", `--proxy-server=http://${config.proxy.ip}:3128`],
@@ -156,6 +150,10 @@ async function visitSite(city, district, buildCaseName) {
   // await page.evaluateOnNewDocument(() => {
   //   delete navigator.__proto__.webdriver;
   // });
+  await page.authenticate({
+    username: config.proxy.username,
+    password: config.proxy.password,
+  });
   await page.goto(`https://lvr.land.moi.gov.tw`, {
     timeout: 0,
   });
@@ -178,7 +176,7 @@ async function visitSite(city, district, buildCaseName) {
     let event = new Event("change", { bubbles: true });
     event.simulated = true;
     cityDropdownElmt.dispatchEvent(event);
-  }, city);
+  }, changeWord(city));
 
   await frame.waitForFunction(
     () => document.querySelector("#p_town").length > 1
@@ -203,6 +201,7 @@ async function visitSite(city, district, buildCaseName) {
 
   await frame.waitForTimeout(200 + Math.floor(Math.random() * 500));
 
+  await fs.mkdir(`${screenShotPath}/`, { recursive: true });
   const cases = await frame.$$("tbody#table-item-tbody tr");
   for (const [idx, row] of Object.entries(cases)) {
     if (idx >= 5) break;
@@ -212,7 +211,7 @@ async function visitSite(city, district, buildCaseName) {
       "tbody#table-item-tbody tr.child"
     );
     await caseDetailTable.screenshot({
-      path: `${SCREENSHOT_PATH}/scrnsht_${Date.now()}.png`,
+      path: `${screenShotPath}/scrnsht_${Date.now()}.png`,
     });
     await frame.waitForTimeout(300 + Math.floor(Math.random() * 300));
   }
@@ -220,4 +219,7 @@ async function visitSite(city, district, buildCaseName) {
   await browser.close();
 }
 
+function changeWord(str) {
+  return str.replace("台", "臺");
+}
 module.exports = handleLineWebhook;

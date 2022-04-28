@@ -11,5 +11,7 @@ module.exports = {
   },
   proxy: {
     ip: process.env.PROXY_IP,
+    username: process.env.PROXY_USERNAME,
+    password: process.env.PROXY_PASSWORD,
   },
 };
