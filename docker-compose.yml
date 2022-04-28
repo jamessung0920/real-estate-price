@@ -9,6 +9,8 @@ services:
       - logvolume:/var/log
     command: npm run start
     env_file: .env
+    links:
+      - redis
   redis:
     image: redis:6.2.6-alpine
 volumes:

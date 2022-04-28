@@ -1,6 +1,7 @@
 const fs = require("fs/promises");
 const axios = require("axios");
 const { v4: uuidv4 } = require("uuid");
+const sharp = require("sharp");
 // const puppeteer = require("puppeteer");
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
@@ -30,7 +31,7 @@ puppeteer.use(StealthPlugin());
 async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
   console.log(reqBody.events);
   const randomDirName = uuidv4();
-  const screenShotPath = `/app/downloads/${randomDirName}`;
+  const screenShotDir = `/app/downloads/${randomDirName}`;
   if (Array.isArray(reqBody.events) && reqBody.events.length === 0) return;
 
   Promise.allSettled(
@@ -38,35 +39,35 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
       // type may be message, follow, unfollow and so on
       if (event.type !== "message" || event.mode !== "active") return;
 
-      const userInput = event.message.text;
+      const userInput = event.message.text.trim();
       const { userId } = event.source;
       let messageObjects = [];
       switch (userInput) {
         case constants.RICH_MENU_ACTION.BUYSELL: {
           console.log("買賣查詢");
-          const userActionCache = { step: "BUYSELL" };
-          await redisClient.set(userId, JSON.stringify(userActionCache), {
+          const userCache = { action: constants.RICH_MENU_ACTION.BUYSELL };
+          await redisClient.set(userId, JSON.stringify(userCache), {
             EX: config.redis.expireTime,
             NX: true,
           });
-          messageObjects = instruction.getBuysellStepInstruction();
+          messageObjects = instruction.getBuysellActionInstruction();
           break;
         }
         case constants.RICH_MENU_ACTION.PRESALE: {
           console.log("預售屋查詢");
-          const userActionCache = { step: "PRESALE" };
-          await redisClient.set(userId, JSON.stringify(userActionCache), {
+          const userCache = { action: constants.RICH_MENU_ACTION.PRESALE };
+          await redisClient.set(userId, JSON.stringify(userCache), {
             EX: config.redis.expireTime,
             NX: true,
           });
-          messageObjects = instruction.getPresaleStepInstruction();
+          messageObjects = instruction.getPresaleActionInstruction();
           break;
         }
         default: {
           console.log("查詢結果");
-          const userActionCache = await redisClient.get(userId);
-          const step = userActionCache ? JSON.parse(userActionCache).step : "";
-          if (!step) {
+          const userCache = await redisClient.get(userId);
+          const action = userCache ? JSON.parse(userCache).action : "";
+          if (!action) {
             messageObjects.push({
               type: "text",
               text: "請選擇動作，買賣查詢 or 預售屋查詢",
@@ -77,12 +78,14 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
           const userInputArray = userInput.split(" ");
           const city = userInputArray[0];
           const district = userInputArray[1];
-          let buildCaseName;
-          if (step === "PRESALE") buildCaseName = userInputArray[2];
+          let buildCaseName = "";
+          if (action === constants.RICH_MENU_ACTION.PRESALE) {
+            buildCaseName = userInputArray[2] ?? "";
+          }
 
-          await visitSite(city, district, buildCaseName, screenShotPath);
+          await visitSite(city, district, buildCaseName, action, screenShotDir);
 
-          const files = await fs.readdir(screenShotPath);
+          const files = await fs.readdir(screenShotDir);
           const screenShotFiles = files
             .filter((fileName) => fileName.startsWith("scrnsht_"))
             .sort((b, c) => {
@@ -121,7 +124,7 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
   ).catch((err) => console.error(err));
 }
 
-async function visitSite(city, district, buildCaseName, screenShotPath) {
+async function visitSite(city, district, buildCaseName, action, screenShotDir) {
   const browser = await puppeteer.launch({
     // headless: false,
     args: ["--no-sandbox", `--proxy-server=http://${config.proxy.ip}:3128`],
@@ -136,8 +139,13 @@ async function visitSite(city, district, buildCaseName, screenShotPath) {
   const userAgent = randomUseragent.getRandom();
   const UA = userAgent || DEFAULT_USER_AGENT;
 
+  let width = 375 + Math.floor(Math.random() * 70);
+  // if action is PRESALE and has buildCaseName, width need to adjust
+  if (action === constants.RICH_MENU_ACTION.PRESALE && buildCaseName) {
+    width = 445 + Math.floor(Math.random() * 10);
+  }
   await page.setViewport({
-    width: 375 + Math.floor(Math.random() * 70),
+    width,
     height: 810 + Math.floor(Math.random() * 20),
     deviceScaleFactor: 1,
     hasTouch: false,
@@ -191,6 +199,11 @@ async function visitSite(city, district, buildCaseName, screenShotPath) {
     targetDistrictOption.selected = true;
   }, district);
 
+  if (action === constants.RICH_MENU_ACTION.PRESALE) {
+    await frame.click("a#pills-presale-tab");
+    await frame.type("#p_build", buildCaseName);
+  }
+
   await frame.waitForTimeout(200 + Math.floor(Math.random() * 350));
   await frame.click("a.btn.btn-a.form-button");
   await frame.waitForNavigation();
@@ -201,7 +214,7 @@ async function visitSite(city, district, buildCaseName, screenShotPath) {
 
   await frame.waitForTimeout(200 + Math.floor(Math.random() * 500));
 
-  await fs.mkdir(`${screenShotPath}/`, { recursive: true });
+  await fs.mkdir(`${screenShotDir}/`, { recursive: true });
   const cases = await frame.$$("tbody#table-item-tbody tr");
   for (const [idx, row] of Object.entries(cases)) {
     if (idx >= 5) break;
@@ -210,9 +223,18 @@ async function visitSite(city, district, buildCaseName, screenShotPath) {
     const caseDetailTable = await frame.waitForSelector(
       "tbody#table-item-tbody tr.child"
     );
-    await caseDetailTable.screenshot({
-      path: `${screenShotPath}/scrnsht_${Date.now()}.png`,
-    });
+    const addressImgBuf = await addressLinkToOpenDetail.screenshot();
+    await frame.waitForTimeout(500 + Math.floor(Math.random() * 350));
+    const caseDetailTableImgBuf = await caseDetailTable.screenshot();
+    await sharp(caseDetailTableImgBuf)
+      .extend({ top: 25, background: "white" })
+      .composite([
+        {
+          input: addressImgBuf,
+          gravity: "northwest",
+        },
+      ])
+      .toFile(`${screenShotDir}/scrnsht_${Date.now()}.png`);
     await frame.waitForTimeout(300 + Math.floor(Math.random() * 300));
   }
 
