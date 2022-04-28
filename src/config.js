@@ -9,4 +9,7 @@ module.exports = {
     host: process.env.REDIS_HOST,
     expireTime: process.env.REDIS_EXPIRE_TIME,
   },
+  proxy: {
+    ip: process.env.PROXY_IP,
+  },
 };

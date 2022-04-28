@@ -130,7 +130,7 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
 async function visitSite(city, district, buildCaseName) {
   const browser = await puppeteer.launch({
     // headless: false,
-    args: ["--no-sandbox"],
+    args: ["--no-sandbox", `--proxy-server=http://${config.proxy.ip}:3128`],
     // executablePath: "/opt/homebrew/bin/chromium",
   });
   const page = (await browser.pages())[0];
