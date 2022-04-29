@@ -7,7 +7,7 @@ const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const randomUseragent = require("random-useragent");
 
-const constants = require("./constant");
+const constants = require("./constants");
 const config = require("./config");
 const instruction = require("./instruction");
 
@@ -36,8 +36,9 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
 
   Promise.allSettled(
     reqBody.events.map(async (event) => {
-      // type may be message, follow, unfollow and so on
+      // event type may be message, follow, unfollow and so on
       if (event.type !== "message" || event.mode !== "active") return;
+      if (event.message.type !== "text") return;
 
       const userInput = event.message.text.trim();
       const { userId } = event.source;
@@ -76,7 +77,15 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
           }
 
           const userInputArray = userInput.split(" ");
-          const city = userInputArray[0];
+          if (!hasValidWordCollection(userInputArray)) {
+            messageObjects.push({
+              type: "text",
+              text: "請輸入有效的縣市或鄉鎮市區",
+            });
+            break;
+          }
+
+          const city = changeWord(userInputArray[0]);
           const district = userInputArray[1];
           let buildCaseName = "";
           if (action === constants.RICH_MENU_ACTION.PRESALE) {
@@ -94,6 +103,12 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
               return 0;
             });
 
+          if (screenShotFiles.length === 0) {
+            messageObjects.push({
+              type: "text",
+              text: "無資料",
+            });
+          }
           for (const file of screenShotFiles) {
             messageObjects.push({
               type: "image",
@@ -162,9 +177,11 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
     username: config.proxy.username,
     password: config.proxy.password,
   });
+  console.log("Visit site");
   await page.goto(`https://lvr.land.moi.gov.tw`, {
     timeout: 0,
   });
+  console.log("Start get data");
   await page.waitForTimeout(200 + Math.floor(Math.random() * 500));
 
   const elementHandle = await page.waitForSelector("frame");
@@ -184,7 +201,7 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
     let event = new Event("change", { bubbles: true });
     event.simulated = true;
     cityDropdownElmt.dispatchEvent(event);
-  }, changeWord(city));
+  }, city);
 
   await frame.waitForFunction(
     () => document.querySelector("#p_town").length > 1
@@ -208,17 +225,21 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
   await frame.click("a.btn.btn-a.form-button");
   await frame.waitForNavigation();
 
+  // because there is chance to get no data, so just wait for 1 row
   await frame.waitForFunction(
-    () => document.querySelector("#table-item-tbody").rows.length >= 5
+    () => document.querySelector("#table-item-tbody").rows.length >= 1
   );
 
   await frame.waitForTimeout(200 + Math.floor(Math.random() * 500));
 
   await fs.mkdir(`${screenShotDir}/`, { recursive: true });
   const cases = await frame.$$("tbody#table-item-tbody tr");
-  for (const [idx, row] of Object.entries(cases)) {
+  for (const [idx, row] of cases.entries()) {
     if (idx >= 5) break;
+
     const addressLinkToOpenDetail = await row.$("td a");
+    if (addressLinkToOpenDetail === null) break;
+
     await addressLinkToOpenDetail.click();
     const caseDetailTable = await frame.waitForSelector(
       "tbody#table-item-tbody tr.child"
@@ -238,10 +259,25 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
     await frame.waitForTimeout(300 + Math.floor(Math.random() * 300));
   }
 
+  console.log("Close browser");
   await browser.close();
 }
 
 function changeWord(str) {
   return str.replace("台", "臺");
 }
+
+function hasValidWordCollection(arr) {
+  if (arr.length !== 2 && arr.length !== 3 && arr.length !== 4) return false;
+
+  const cityTownMapping = constants.CITY_TOWN_MAPPING;
+  const city = changeWord(arr[0]);
+  const district = arr[1];
+
+  if (!cityTownMapping[city]) return false;
+  if (!cityTownMapping[city].includes(district)) return false;
+
+  return true;
+}
+
 module.exports = handleLineWebhook;

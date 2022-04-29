@@ -2,7 +2,7 @@ function getBuysellActionInstruction() {
   return [
     {
       type: "text",
-      text: "請輸入您要查詢的鄉鎮市區。\n\n格式為: xx市 xx區",
+      text: "請輸入您要查詢的鄉鎮市區。查詢結果來自於內政部網站，需花15-20秒抓取。\n\n格式為: xx市(or縣) xx區(or鄉鎮市)",
     },
     {
       type: "text",
@@ -12,6 +12,10 @@ function getBuysellActionInstruction() {
       type: "text",
       text: "台中市 北屯區",
     },
+    {
+      type: "text",
+      text: "苗栗縣 通霄鎮",
+    },
   ];
 }
 
@@ -19,7 +23,7 @@ function getPresaleActionInstruction() {
   return [
     {
       type: "text",
-      text: "請輸入您要查詢的鄉鎮市區、以及建案名稱。\n\n格式為: xx市 xx區 案件名稱(可留白)",
+      text: "請輸入您要查詢的鄉鎮市區、以及建案名稱。查詢結果來自於內政部網站，需花15-20秒抓取。\n\n格式為: xx市(or縣) xx區(or鄉鎮市) 案件名稱(可留白)",
     },
     {
       type: "text",
@@ -32,6 +36,10 @@ function getPresaleActionInstruction() {
     {
       type: "text",
       text: "台中市 北屯區",
+    },
+    {
+      type: "text",
+      text: "苗栗縣 通霄鎮",
     },
   ];
 }
