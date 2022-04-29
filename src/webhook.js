@@ -178,9 +178,9 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
     password: config.proxy.password,
   });
   console.log("Visit site");
-  await page.goto(`https://lvr.land.moi.gov.tw`, {
-    timeout: 0,
-  });
+  await page
+    .goto(`https://lvr.land.moi.gov.tw`, { timeout: 0 })
+    .catch((err) => console.error("page goto error, " + err));
   console.log("Start get data");
   await page.waitForTimeout(200 + Math.floor(Math.random() * 500));
 
