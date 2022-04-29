@@ -92,7 +92,23 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
             buildCaseName = userInputArray[2] ?? "";
           }
 
-          await visitSite(city, district, buildCaseName, action, screenShotDir);
+          try {
+            await visitSite(
+              city,
+              district,
+              buildCaseName,
+              action,
+              screenShotDir
+            );
+          } catch (error) {
+            console.log("=================== error ===================");
+            console.log(error);
+            messageObjects.push({
+              type: "text",
+              text: "發生網路問題或非預期錯誤，請重新操作",
+            });
+            break;
+          }
 
           const files = await fs.readdir(screenShotDir);
           const screenShotFiles = files
@@ -159,9 +175,11 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
   if (action === constants.RICH_MENU_ACTION.PRESALE && buildCaseName) {
     width = 445 + Math.floor(Math.random() * 10);
   }
+  const height = 810 + Math.floor(Math.random() * 20);
+  console.log(`width: ${width}, height: ${height}`);
   await page.setViewport({
     width,
-    height: 810 + Math.floor(Math.random() * 20),
+    height,
     deviceScaleFactor: 1,
     hasTouch: false,
     isLandscape: false,
@@ -178,9 +196,7 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
     password: config.proxy.password,
   });
   console.log("Visit site");
-  await page
-    .goto(`https://lvr.land.moi.gov.tw`, { timeout: 0 })
-    .catch((err) => console.error("page goto error, " + err));
+  await page.goto(`https://lvr.land.moi.gov.tw`, { timeout: 0 });
   console.log("Start get data");
   await page.waitForTimeout(200 + Math.floor(Math.random() * 500));
 
@@ -227,12 +243,12 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
 
   await frame
     .waitForFunction(
-      () => document.querySelector("#table-item-tbody").rows.length >= 5,
+      () => document.querySelector("#table-item-tbody").rows.length >= 2,
       { timeout: 5000 }
     )
-    .catch((err) => console.error(err + ", has no search result data."));
+    .catch((err) => console.log(err + ", has no search result data."));
 
-  await frame.waitForTimeout(200 + Math.floor(Math.random() * 500));
+  await frame.waitForTimeout(500 + Math.floor(Math.random() * 500));
 
   await fs.mkdir(`${screenShotDir}/`, { recursive: true });
   const cases = await frame.$$("tbody#table-item-tbody tr");
@@ -242,7 +258,7 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
     const addressLinkToOpenDetail = await row.$("td a");
     if (addressLinkToOpenDetail === null) break;
 
-    await addressLinkToOpenDetail.click();
+    await addressLinkToOpenDetail.evaluate((a) => a.click());
     const caseDetailTable = await frame.waitForSelector(
       "tbody#table-item-tbody tr.child"
     );
