@@ -225,10 +225,12 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
   await frame.click("a.btn.btn-a.form-button");
   await frame.waitForNavigation();
 
-  // because there is chance to get no data, so just wait for 1 row
-  await frame.waitForFunction(
-    () => document.querySelector("#table-item-tbody").rows.length >= 1
-  );
+  await frame
+    .waitForFunction(
+      () => document.querySelector("#table-item-tbody").rows.length >= 5,
+      { timeout: 5000 }
+    )
+    .catch((err) => console.error(err + ", has no search result data."));
 
   await frame.waitForTimeout(200 + Math.floor(Math.random() * 500));
 
