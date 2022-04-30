@@ -173,16 +173,12 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
   const userAgent = randomUseragent.getRandom();
   const UA = userAgent || DEFAULT_USER_AGENT;
 
-  let width = 375 + Math.floor(Math.random() * 70);
-  // if action is PRESALE and has buildCaseName, width need to adjust
-  if (action === constants.RICH_MENU_ACTION.PRESALE && buildCaseName) {
-    width = 445 + Math.floor(Math.random() * 10);
-  }
-  const height = 810 + Math.floor(Math.random() * 20);
-  console.log(`width: ${width}, height: ${height}`);
+  let pageWidth = 395 + Math.floor(Math.random() * 50);
+  const pageHeight = 810 + Math.floor(Math.random() * 20);
+  console.log(`pageWidth: ${pageWidth}, pageHeight: ${pageHeight}`);
   await page.setViewport({
-    width,
-    height,
+    width: pageWidth,
+    height: pageHeight,
     deviceScaleFactor: 1,
     hasTouch: false,
     isLandscape: false,
@@ -259,6 +255,19 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
 
   await fs.mkdir(`${screenShotDir}/`, { recursive: true });
   const cases = await frame.$$("tbody#table-item-tbody tr");
+  // page size should be bigger and as close as row element size due to rwd changing
+  const rowPixel = await cases[0].boundingBox();
+  console.log(`rowPixel: ${JSON.stringify(rowPixel)}`);
+  await page.setViewport({
+    width: Math.floor(rowPixel.width + 20 + Math.random() * 5),
+    height: pageHeight,
+    deviceScaleFactor: 1,
+    hasTouch: false,
+    isLandscape: false,
+    isMobile: false,
+  });
+  const rowTitle = await frame.$("thead#table-item-head tr");
+  const rowTitleImgBuf = await rowTitle.screenshot();
   for (const [idx, row] of cases.entries()) {
     if (idx >= 5) break;
 
@@ -269,15 +278,20 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
     const caseDetailTable = await frame.waitForSelector(
       "tbody#table-item-tbody tr.child"
     );
-    const addressImgBuf = await addressLinkToOpenDetail.screenshot();
+    const addressRowImgBuf = await row.screenshot();
     await frame.waitForTimeout(500 + Math.floor(Math.random() * 350));
     const caseDetailTableImgBuf = await caseDetailTable.screenshot();
     await sharp(caseDetailTableImgBuf)
-      .extend({ top: 25, background: "white" })
+      .extend({ top: 66, background: "white" })
       .composite([
         {
-          input: addressImgBuf,
+          input: rowTitleImgBuf,
           gravity: "northwest",
+        },
+        {
+          input: addressRowImgBuf,
+          top: 33,
+          left: 0,
         },
       ])
       .toFile(`${screenShotDir}/scrnsht_${Date.now()}.png`);
