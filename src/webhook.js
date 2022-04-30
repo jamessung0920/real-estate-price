@@ -1,4 +1,5 @@
 const fs = require("fs/promises");
+const util = require("util");
 const axios = require("axios");
 const { v4: uuidv4 } = require("uuid");
 const sharp = require("sharp");
@@ -10,6 +11,8 @@ const randomUseragent = require("random-useragent");
 const constants = require("./constants");
 const config = require("./config");
 const instruction = require("./instruction");
+
+const delay = util.promisify(setTimeout);
 
 puppeteer.use(StealthPlugin());
 
@@ -196,7 +199,11 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
     password: config.proxy.password,
   });
   console.log("Visit site");
-  await page.goto(`https://lvr.land.moi.gov.tw`, { timeout: 0 });
+  await retry(
+    () => page.goto("https://lvr.land.moi.gov.tw", { timeout: 6000 }),
+    3000,
+    3
+  );
   console.log("Start get data");
   await page.waitForTimeout(200 + Math.floor(Math.random() * 500));
 
@@ -279,6 +286,19 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
 
   console.log("Close browser");
   await browser.close();
+}
+
+async function retry(fn, retryDelay = 1000, numRetries = 3) {
+  for (let i = 0; i <= numRetries; i++) {
+    if (i !== 0) console.log("retry...");
+    try {
+      return await fn();
+    } catch (e) {
+      if (i === numRetries) throw e;
+      await delay(retryDelay);
+      retryDelay = retryDelay * 2;
+    }
+  }
 }
 
 function changeWord(str) {
