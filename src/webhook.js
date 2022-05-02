@@ -52,7 +52,6 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
           const userCache = { action: constants.RICH_MENU_ACTION.BUYSELL };
           await redisClient.set(userId, JSON.stringify(userCache), {
             EX: config.redis.expireTime,
-            NX: true,
           });
           messageObjects = instruction.getBuysellActionInstruction();
           break;
@@ -62,7 +61,6 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
           const userCache = { action: constants.RICH_MENU_ACTION.PRESALE };
           await redisClient.set(userId, JSON.stringify(userCache), {
             EX: config.redis.expireTime,
-            NX: true,
           });
           messageObjects = instruction.getPresaleActionInstruction();
           break;
@@ -247,7 +245,7 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
   await frame
     .waitForFunction(
       () => document.querySelector("#table-item-tbody").rows.length >= 2,
-      { timeout: 5000 }
+      { timeout: 8000 }
     )
     .catch((err) => console.log(err + ", has no search result data."));
 
@@ -255,17 +253,34 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
 
   await fs.mkdir(`${screenShotDir}/`, { recursive: true });
   const cases = await frame.$$("tbody#table-item-tbody tr");
-  // page size should be bigger and as close as row element size due to rwd changing
+
+  // in order to screenshot properly, page size should be adjusted to bigger than row element size due to rwd changing,
+  // but should be adjusted until before next time rwd changing.
   const rowPixel = await cases[0].boundingBox();
   console.log(`rowPixel: ${JSON.stringify(rowPixel)}`);
-  await page.setViewport({
-    width: Math.floor(rowPixel.width + 20 + Math.random() * 5),
+  const viewportConfig = {
+    width: Math.ceil(rowPixel.width),
     height: pageHeight,
     deviceScaleFactor: 1,
     hasTouch: false,
     isLandscape: false,
     isMobile: false,
-  });
+  };
+  console.log(`original page width: ${viewportConfig.width}`);
+  for (let i = 0; i < 20; i++) {
+    viewportConfig.width += 5;
+    await page.setViewport(viewportConfig);
+    await frame.waitForTimeout(200 + Math.floor(Math.random() * 100));
+    const newRowPixel = await cases[0].boundingBox();
+    if (newRowPixel.width > rowPixel.width) {
+      viewportConfig.width -= 5;
+      await page.setViewport(viewportConfig);
+      await frame.waitForTimeout(200 + Math.floor(Math.random() * 100));
+      break;
+    }
+  }
+  console.log(`new page width: ${viewportConfig.width}`);
+
   const rowTitle = await frame.$("thead#table-item-head tr");
   const rowTitleImgBuf = await rowTitle.screenshot();
   for (const [idx, row] of cases.entries()) {
