@@ -2,11 +2,15 @@ function getBuysellActionInstruction() {
   return [
     {
       type: "text",
-      text: "請輸入您要查詢的鄉鎮市區。查詢結果來自於內政部網站，需花15-20秒抓取。\n\n格式為: xx市(or縣) xx區(or鄉鎮市)",
+      text: "請輸入您要查詢的鄉鎮市區、以及完整或部份地段/道路名稱。查詢結果來自於內政部網站，需花15-20秒抓取。\n\n⚠️注意⚠️: 除上述欄位以外，其餘之欄位皆使用網頁預設值搜尋。\n\n格式為: xx市(or縣) xx區(or鄉鎮市) xx路(可留白)",
     },
     {
       type: "text",
       text: "可參照以下範例:",
+    },
+    {
+      type: "text",
+      text: "台中市 北屯區 崇德八路一段",
     },
     {
       type: "text",
@@ -23,7 +27,7 @@ function getPresaleActionInstruction() {
   return [
     {
       type: "text",
-      text: "請輸入您要查詢的鄉鎮市區、以及建案名稱。查詢結果來自於內政部網站，需花15-20秒抓取。\n\n格式為: xx市(or縣) xx區(or鄉鎮市) 案件名稱(可留白)",
+      text: "請輸入您要查詢的鄉鎮市區、以及完整或部份建案名稱。查詢結果來自於內政部網站，需花15-20秒抓取。\n\n⚠️注意⚠️: 除上述欄位以外，其餘之欄位皆使用網頁預設值搜尋。\n\n格式為: xx市(or縣) xx區(or鄉鎮市) 建案名稱(可留白)",
     },
     {
       type: "text",

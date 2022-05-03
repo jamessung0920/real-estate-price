@@ -89,14 +89,18 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
           const city = changeWord(userInputArray[0]);
           const district = userInputArray[1];
           let buildCaseName = "";
+          let address = "";
           if (action === constants.RICH_MENU_ACTION.PRESALE) {
             buildCaseName = userInputArray[2] ?? "";
+          } else {
+            address = userInputArray[2] ?? "";
           }
 
           try {
             await visitSite(
               city,
               district,
+              address,
               buildCaseName,
               action,
               screenShotDir
@@ -156,7 +160,14 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
   ).catch((err) => console.error(err));
 }
 
-async function visitSite(city, district, buildCaseName, action, screenShotDir) {
+async function visitSite(
+  city,
+  district,
+  address,
+  buildCaseName,
+  action,
+  screenShotDir
+) {
   const browser = await puppeteer.launch({
     // headless: false,
     args: ["--no-sandbox", `--proxy-server=http://${config.proxy.ip}:3128`],
@@ -235,11 +246,20 @@ async function visitSite(city, district, buildCaseName, action, screenShotDir) {
 
   if (action === constants.RICH_MENU_ACTION.PRESALE) {
     await frame.click("a#pills-presale-tab");
-    await frame.type("#p_build", buildCaseName);
+    if (buildCaseName) await frame.type("#p_build", buildCaseName);
   }
 
   await frame.waitForTimeout(200 + Math.floor(Math.random() * 350));
-  await frame.click("a.btn.btn-a.form-button");
+  if (address) {
+    await frame.click("a#QryFilter");
+    await frame.type("#road", address);
+    const filterSearchButton = await frame.$(
+      "div#QryPost1 button.btn.btn-full.form-button"
+    );
+    await filterSearchButton.evaluate((b) => b.click());
+  } else {
+    await frame.click("a.btn.btn-a.form-button");
+  }
   await frame.waitForNavigation();
 
   await frame
