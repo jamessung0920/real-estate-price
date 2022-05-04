@@ -46,30 +46,42 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
       const userInput = event.message.text.trim();
       const { userId } = event.source;
       let messageObjects = [];
+
+      const hasLockOfUser = await redisClient.get(`DOSLock-${userId}`);
+      if (hasLockOfUser === "true") {
+        messageObjects.push({
+          type: "text",
+          text: "前次查詢仍在查詢中，請等待查詢結果後再查詢。",
+        });
+        await replyToUser(event.replyToken, messageObjects);
+        return;
+      }
+
       switch (userInput) {
         case constants.RICH_MENU_ACTION.BUYSELL: {
           console.log("買賣查詢");
-          const userCache = { action: constants.RICH_MENU_ACTION.BUYSELL };
-          await redisClient.set(userId, JSON.stringify(userCache), {
-            EX: config.redis.expireTime,
-          });
+          await redisClient.set(
+            `action-${userId}`,
+            constants.RICH_MENU_ACTION.BUYSELL,
+            { EX: config.redis.expireTime }
+          );
           messageObjects = instruction.getBuysellActionInstruction();
           break;
         }
         case constants.RICH_MENU_ACTION.PRESALE: {
           console.log("預售屋查詢");
-          const userCache = { action: constants.RICH_MENU_ACTION.PRESALE };
-          await redisClient.set(userId, JSON.stringify(userCache), {
-            EX: config.redis.expireTime,
-          });
+          await redisClient.set(
+            `action-${userId}`,
+            constants.RICH_MENU_ACTION.PRESALE,
+            { EX: config.redis.expireTime }
+          );
           messageObjects = instruction.getPresaleActionInstruction();
           break;
         }
         default: {
           console.log("查詢結果");
-          const userCache = await redisClient.get(userId);
-          const action = userCache ? JSON.parse(userCache).action : "";
-          if (!action) {
+          const userActionCache = await redisClient.get(`action-${userId}`);
+          if (!userActionCache) {
             messageObjects.push({
               type: "text",
               text: "請選擇動作，買賣查詢 or 預售屋查詢",
@@ -90,19 +102,22 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
           const district = userInputArray[1];
           let buildCaseName = "";
           let address = "";
-          if (action === constants.RICH_MENU_ACTION.PRESALE) {
+          if (userActionCache === constants.RICH_MENU_ACTION.PRESALE) {
             buildCaseName = userInputArray[2] ?? "";
           } else {
             address = userInputArray[2] ?? "";
           }
 
           try {
+            await redisClient.set(`DOSLock-${userId}`, true, {
+              EX: config.redis.expireTime,
+            });
             await visitSite(
               city,
               district,
               address,
               buildCaseName,
-              action,
+              userActionCache,
               screenShotDir
             );
           } catch (error) {
@@ -113,6 +128,8 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
               text: "發生網路問題或非預期錯誤，請重新操作",
             });
             break;
+          } finally {
+            await redisClient.del(`DOSLock-${userId}`);
           }
 
           const files = await fs.readdir(screenShotDir);
@@ -138,24 +155,12 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
             });
           }
 
-          await redisClient.del(userId);
+          await redisClient.del(`action-${userId}`);
           break;
         }
       }
 
-      await axios.post(
-        "https://api.line.me/v2/bot/message/reply",
-        {
-          replyToken: event.replyToken,
-          messages: messageObjects,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${config.webhook.line.channelAccessToken}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      await replyToUser(event.replyToken, messageObjects);
     })
   ).catch((err) => console.error(err));
 }
@@ -348,6 +353,22 @@ async function retry(fn, retryDelay = 1000, numRetries = 3) {
       retryDelay = retryDelay * 2;
     }
   }
+}
+
+async function replyToUser(replyToken, messageObjects) {
+  await axios.post(
+    "https://api.line.me/v2/bot/message/reply",
+    {
+      replyToken,
+      messages: messageObjects,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${config.webhook.line.channelAccessToken}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
 }
 
 function changeWord(str) {
