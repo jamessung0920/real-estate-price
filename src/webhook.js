@@ -173,11 +173,13 @@ async function visitSite(
   action,
   screenShotDir
 ) {
+  console.log("launch browser");
   const browser = await puppeteer.launch({
     // headless: false,
     args: ["--no-sandbox", `--proxy-server=http://${config.proxy.ip}:3128`],
     // executablePath: "/opt/homebrew/bin/chromium",
   });
+  console.log("launch browser finish");
   const page = (await browser.pages())[0];
 
   page.on("console", (msg) => console.log(msg.text()));
