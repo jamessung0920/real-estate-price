@@ -342,6 +342,7 @@ async function visitSite(
     await frame.waitForTimeout(250 + Math.floor(Math.random() * 350));
     const addressRowImgBuf = await row.screenshot();
     await frame.waitForTimeout(250 + Math.floor(Math.random() * 350));
+    await frame.evaluate(scrollToElement, "tbody#table-item-tbody tr.child");
 
     const caseDetailTableImgBuf = await caseDetailTable.screenshot();
     await sharp(caseDetailTableImgBuf)
@@ -409,6 +410,17 @@ function hasValidWordCollection(arr) {
   if (!cityTownMapping[city].includes(district)) return false;
 
   return true;
+}
+function scrollToElement(sltr) {
+  document.querySelector(sltr).scrollIntoView({
+    behavior: "smooth",
+    block: "end",
+    inline: "nearest",
+  });
+  window.scrollBy({
+    top: 2 + Math.floor(Math.random() * 8),
+    behavior: "smooth",
+  });
 }
 
 module.exports = handleLineWebhook;
