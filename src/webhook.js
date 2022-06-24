@@ -330,8 +330,8 @@ async function visitSite(
       const thText = await caseDetailTr.$eval("th", (th) => th.innerText);
       if (thText.trim() === "備註:" || thText.trim() === "樓別/樓高:") {
         await caseDetailTr.$eval("td", (c) => {
-          if (c.innerText.length > 6) {
-            c.innerText = c.innerText.substring(0, 6) + "...(省略)";
+          if (c.innerText.length > 10) {
+            c.innerText = c.innerText.substring(0, 10) + "...";
           }
         });
       }
