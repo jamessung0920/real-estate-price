@@ -217,9 +217,9 @@ async function visitSite(
   });
   console.log("Visit site");
   await retry(
-    () => page.goto("https://lvr.land.moi.gov.tw", { timeout: 8000 }),
-    3000,
-    3
+    () => page.goto("https://lvr.land.moi.gov.tw", { timeout: 6000 }),
+    2000,
+    5
   );
   console.log("Start get data");
   await page.waitForTimeout(200 + Math.floor(Math.random() * 500));
@@ -243,7 +243,7 @@ async function visitSite(
     cityDropdownElmt.dispatchEvent(event);
   }, city);
 
-  await frame.waitForTimeout(800 + Math.floor(Math.random() * 350));
+  await frame.waitForTimeout(500 + Math.floor(Math.random() * 350));
   await frame.waitForFunction(
     () => document.querySelector("#p_town").length > 1
   );
@@ -303,12 +303,12 @@ async function visitSite(
   for (let i = 0; i < 20; i++) {
     viewportConfig.width += 5;
     await page.setViewport(viewportConfig);
-    await frame.waitForTimeout(200 + Math.floor(Math.random() * 100));
+    await frame.waitForTimeout(150 + Math.floor(Math.random() * 50));
     const newRowPixel = await cases[0].boundingBox();
     if (newRowPixel.width > rowPixel.width) {
       viewportConfig.width -= 5;
       await page.setViewport(viewportConfig);
-      await frame.waitForTimeout(200 + Math.floor(Math.random() * 100));
+      await frame.waitForTimeout(150 + Math.floor(Math.random() * 50));
       break;
     }
   }
@@ -324,7 +324,7 @@ async function visitSite(
     const caseDetailTable = await frame.waitForSelector(
       "tbody#table-item-tbody tr.child"
     );
-    await frame.waitForTimeout(500 + Math.floor(Math.random() * 350));
+    await frame.waitForTimeout(300 + Math.floor(Math.random() * 350));
     const caseDetailTrs = await caseDetailTable.$$("table tr");
     for (const caseDetailTr of caseDetailTrs) {
       const thText = await caseDetailTr.$eval("th", (th) => th.innerText);
@@ -339,9 +339,9 @@ async function visitSite(
 
     const rowTitle = await frame.$("thead#table-item-head tr");
     const rowTitleImgBuf = await rowTitle.screenshot();
-    await frame.waitForTimeout(300 + Math.floor(Math.random() * 350));
+    await frame.waitForTimeout(250 + Math.floor(Math.random() * 350));
     const addressRowImgBuf = await row.screenshot();
-    await frame.waitForTimeout(300 + Math.floor(Math.random() * 350));
+    await frame.waitForTimeout(250 + Math.floor(Math.random() * 350));
 
     const caseDetailTableImgBuf = await caseDetailTable.screenshot();
     await sharp(caseDetailTableImgBuf)
