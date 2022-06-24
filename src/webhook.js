@@ -194,8 +194,8 @@ async function visitSite(
   const userAgent = randomUseragent.getRandom();
   const UA = userAgent || DEFAULT_USER_AGENT;
 
-  let pageWidth = 395 + Math.floor(Math.random() * 50);
-  const pageHeight = 810 + Math.floor(Math.random() * 20);
+  let pageWidth = 395 + Math.floor(Math.random() * 30);
+  const pageHeight = 830 + Math.floor(Math.random() * 20);
   console.log(`pageWidth: ${pageWidth}, pageHeight: ${pageHeight}`);
   await page.setViewport({
     width: pageWidth,
@@ -217,7 +217,7 @@ async function visitSite(
   });
   console.log("Visit site");
   await retry(
-    () => page.goto("https://lvr.land.moi.gov.tw", { timeout: 6000 }),
+    () => page.goto("https://lvr.land.moi.gov.tw", { timeout: 8000 }),
     3000,
     3
   );
@@ -243,6 +243,7 @@ async function visitSite(
     cityDropdownElmt.dispatchEvent(event);
   }, city);
 
+  await frame.waitForTimeout(800 + Math.floor(Math.random() * 350));
   await frame.waitForFunction(
     () => document.querySelector("#p_town").length > 1
   );
@@ -277,7 +278,7 @@ async function visitSite(
   await frame
     .waitForFunction(
       () => document.querySelector("#table-item-tbody").rows.length >= 2,
-      { timeout: 8000 }
+      { timeout: 15000 }
     )
     .catch((err) => console.log(err + ", has no search result data."));
 
@@ -313,8 +314,6 @@ async function visitSite(
   }
   console.log(`new page width: ${viewportConfig.width}`);
 
-  const rowTitle = await frame.$("thead#table-item-head tr");
-  const rowTitleImgBuf = await rowTitle.screenshot();
   for (const [idx, row] of cases.entries()) {
     if (idx >= 5) break;
 
@@ -325,8 +324,25 @@ async function visitSite(
     const caseDetailTable = await frame.waitForSelector(
       "tbody#table-item-tbody tr.child"
     );
-    const addressRowImgBuf = await row.screenshot();
     await frame.waitForTimeout(500 + Math.floor(Math.random() * 350));
+    const caseDetailTrs = await caseDetailTable.$$("table tr");
+    for (const caseDetailTr of caseDetailTrs) {
+      const thText = await caseDetailTr.$eval("th", (th) => th.innerText);
+      if (thText.trim() === "備註:" || thText.trim() === "樓別/樓高:") {
+        await caseDetailTr.$eval("td", (c) => {
+          if (c.innerText.length > 6) {
+            c.innerText = c.innerText.substring(0, 6) + "...(省略)";
+          }
+        });
+      }
+    }
+
+    const rowTitle = await frame.$("thead#table-item-head tr");
+    const rowTitleImgBuf = await rowTitle.screenshot();
+    await frame.waitForTimeout(300 + Math.floor(Math.random() * 350));
+    const addressRowImgBuf = await row.screenshot();
+    await frame.waitForTimeout(300 + Math.floor(Math.random() * 350));
+
     const caseDetailTableImgBuf = await caseDetailTable.screenshot();
     await sharp(caseDetailTableImgBuf)
       .extend({ top: 66, background: "white" })
