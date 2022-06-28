@@ -16,6 +16,88 @@ const delay = util.promisify(setTimeout);
 
 puppeteer.use(StealthPlugin());
 
+// a forever browser
+let browser;
+
+(async () => {
+  setInterval(async () => {
+    const nowPageCount = (await browser?.pages())?.length || 0;
+    console.log(`now page count: ${nowPageCount}`);
+  }, 60 * 1000);
+  setInterval(async () => {
+    const nowHours = new Date().getHours();
+    if (nowHours >= 18 && nowHours < 0) {
+      const nowPageCount = (await browser?.pages())?.length || 0;
+      for (let i = 1; i < nowPageCount; i++) {
+        const page = (await browser.pages())[i];
+        await page.reload();
+        console.log(`routine page ${i} reload finish`);
+      }
+    }
+  }, 6 * 60 * 60 * 1000);
+  try {
+    await launchBrowser();
+    for (let i = 1; i <= 5; i++) {
+      console.log(`pre-launch page ${i} and website`);
+      await launchPageAndWebsite();
+      console.log(`pre-launch page ${i} and website finish`);
+      await delay(5000 + Math.floor(Math.random() * 5000));
+    }
+  } catch (err) {
+    console.error(err);
+  }
+})();
+
+async function launchBrowser() {
+  browser = await puppeteer.launch({
+    args: [
+      "--no-sandbox",
+      "--single-process",
+      "--no-zygote",
+      `--proxy-server=http://${config.proxy.ip}:3128`,
+    ],
+  });
+}
+
+async function launchPageAndWebsite() {
+  // always keep a page[0] on browser
+  const page = await browser.newPage();
+
+  const DEFAULT_USER_AGENT =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.79 Safari/537.36";
+  const userAgent = randomUseragent.getRandom();
+  const UA = userAgent || DEFAULT_USER_AGENT;
+
+  let pageWidth = 395 + Math.floor(Math.random() * 30);
+  const pageHeight = 830 + Math.floor(Math.random() * 20);
+  console.log(`pageWidth: ${pageWidth}, pageHeight: ${pageHeight}`);
+  await page.setViewport({
+    width: pageWidth,
+    height: pageHeight,
+    deviceScaleFactor: 1,
+    hasTouch: false,
+    isLandscape: false,
+    isMobile: false,
+  });
+  await page.setUserAgent(UA);
+  await page.setJavaScriptEnabled(true);
+  // set window.navigator.webdriver to undefined (if not use StealthPlugin)
+  // await page.evaluateOnNewDocument(() => {
+  //   delete navigator.__proto__.webdriver;
+  // });
+  await page.authenticate({
+    username: config.proxy.username,
+    password: config.proxy.password,
+  });
+  console.log("Visit site");
+  await retry(
+    () => page.goto("https://lvr.land.moi.gov.tw", { timeout: 6000 }),
+    3000,
+    5
+  );
+  return page;
+}
+
 /** example request body
 {
   destination: 'jwioefjiwoefjwioefjewiofjweifoj',
@@ -108,11 +190,26 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
             address = userInputArray[2] ?? "";
           }
 
+          let page, i;
           try {
             await redisClient.set(`DOSLock-${userId}`, true, {
               EX: config.redis.expireTime,
             });
+            for (i = 1; i <= 5; i++) {
+              const lock = await redisClient.set(`get-page-${i}-lock`, i, {
+                EX: config.redis.expireTime,
+                NX: true,
+              });
+              console.log(lock, i);
+              if (lock) {
+                page = (await browser.pages())[i];
+                break;
+              } else if (i === 5) {
+                page = await launchPageAndWebsite();
+              }
+            }
             await visitSite(
+              page,
               city,
               district,
               address,
@@ -129,6 +226,21 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
             });
             break;
           } finally {
+            retry(
+              () =>
+                page.reload({ timeout: 6000 }).then(() => {
+                  const pageIndexOnLog = i === 6 ? "5++" : i;
+                  console.log(
+                    `finish visitSite and reload success, release lock for page ${pageIndexOnLog}`
+                  );
+                  redisClient.del(`get-page-${i}-lock`);
+                }),
+              2000,
+              5
+            ).catch(() => {
+              console.error(`reload failed, page ${i} forever unavailable`);
+              redisClient.set(`get-page-${i}-lock`, i, { EX: 864000000 });
+            });
             await redisClient.del(`DOSLock-${userId}`);
           }
 
@@ -166,6 +278,7 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
 }
 
 async function visitSite(
+  page,
   city,
   district,
   address,
@@ -173,28 +286,9 @@ async function visitSite(
   action,
   screenShotDir
 ) {
-  console.log("launch browser");
-  const browser = await puppeteer.launch({
-    // headless: false,
-    args: [
-      "--no-sandbox",
-      "--single-process",
-      "--no-zygote",
-      `--proxy-server=http://${config.proxy.ip}:3128`,
-    ],
-    // executablePath: "/opt/homebrew/bin/chromium",
-  });
-  console.log("launch browser finish");
-  const page = (await browser.pages())[0];
-
   page.on("console", (msg) => console.log(msg.text()));
 
-  const DEFAULT_USER_AGENT =
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.79 Safari/537.36";
-  const userAgent = randomUseragent.getRandom();
-  const UA = userAgent || DEFAULT_USER_AGENT;
-
-  let pageWidth = 395 + Math.floor(Math.random() * 30);
+  const pageWidth = 395 + Math.floor(Math.random() * 30);
   const pageHeight = 830 + Math.floor(Math.random() * 20);
   console.log(`pageWidth: ${pageWidth}, pageHeight: ${pageHeight}`);
   await page.setViewport({
@@ -205,22 +299,7 @@ async function visitSite(
     isLandscape: false,
     isMobile: false,
   });
-  await page.setUserAgent(UA);
-  await page.setJavaScriptEnabled(true);
-  // set window.navigator.webdriver to undefined (if not use StealthPlugin)
-  // await page.evaluateOnNewDocument(() => {
-  //   delete navigator.__proto__.webdriver;
-  // });
-  await page.authenticate({
-    username: config.proxy.username,
-    password: config.proxy.password,
-  });
-  console.log("Visit site");
-  await retry(
-    () => page.goto("https://lvr.land.moi.gov.tw", { timeout: 6000 }),
-    2000,
-    5
-  );
+
   console.log("Start get data");
   await page.waitForTimeout(200 + Math.floor(Math.random() * 500));
 
@@ -269,11 +348,16 @@ async function visitSite(
     const filterSearchButton = await frame.$(
       "div#QryPost1 button.btn.btn-full.form-button"
     );
-    await filterSearchButton.evaluate((b) => b.click());
+    await Promise.all([
+      frame.waitForNavigation(),
+      filterSearchButton.evaluate((b) => b.click()),
+    ]);
   } else {
-    await frame.click("a.btn.btn-a.form-button");
+    await Promise.all([
+      frame.waitForNavigation(),
+      frame.click("a.btn.btn-a.form-button"),
+    ]);
   }
-  await frame.waitForNavigation();
 
   await frame
     .waitForFunction(
@@ -361,9 +445,6 @@ async function visitSite(
       .toFile(`${screenShotDir}/scrnsht_${Date.now()}.png`);
     await frame.waitForTimeout(300 + Math.floor(Math.random() * 300));
   }
-
-  console.log("Close browser");
-  await browser.close();
 }
 
 async function retry(fn, retryDelay = 1000, numRetries = 3) {
