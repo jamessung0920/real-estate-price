@@ -68,7 +68,7 @@ async function launchPageAndWebsite() {
   const userAgent = randomUseragent.getRandom();
   const UA = userAgent || DEFAULT_USER_AGENT;
 
-  let pageWidth = 395 + Math.floor(Math.random() * 30);
+  let pageWidth = 455 + Math.floor(Math.random() * 30);
   const pageHeight = 830 + Math.floor(Math.random() * 20);
   console.log(`pageWidth: ${pageWidth}, pageHeight: ${pageHeight}`);
   await page.setViewport({
@@ -286,9 +286,7 @@ async function visitSite(
   action,
   screenShotDir
 ) {
-  page.on("console", (msg) => console.log(msg.text()));
-
-  const pageWidth = 395 + Math.floor(Math.random() * 30);
+  const pageWidth = 455 + Math.floor(Math.random() * 30);
   const pageHeight = 830 + Math.floor(Math.random() * 20);
   console.log(`pageWidth: ${pageWidth}, pageHeight: ${pageHeight}`);
   await page.setViewport({
@@ -414,8 +412,8 @@ async function visitSite(
       const thText = await caseDetailTr.$eval("th", (th) => th.innerText);
       if (thText.trim() === "備註:" || thText.trim() === "樓別/樓高:") {
         await caseDetailTr.$eval("td", (c) => {
-          if (c.innerText.length > 10) {
-            c.innerText = c.innerText.substring(0, 10) + "...";
+          if (c.innerText.length > 15) {
+            c.innerText = c.innerText.substring(0, 15) + "...";
           }
         });
       }
