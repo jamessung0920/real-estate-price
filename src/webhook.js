@@ -23,10 +23,10 @@ let browser;
   setInterval(async () => {
     const nowPageCount = (await browser?.pages())?.length || 0;
     console.log(`now page count: ${nowPageCount}`);
-  }, 60 * 1000);
+  }, 30 * 60 * 1000);
   setInterval(async () => {
     const nowHours = new Date().getHours();
-    if (nowHours >= 18 && nowHours < 0) {
+    if (nowHours >= 18) {
       const nowPageCount = (await browser?.pages())?.length || 0;
       for (let i = 1; i < nowPageCount; i++) {
         const page = (await browser.pages())[i];
