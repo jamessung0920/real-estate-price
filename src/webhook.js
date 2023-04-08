@@ -52,9 +52,9 @@ async function launchBrowser() {
   browser = await puppeteer.launch({
     args: [
       "--no-sandbox",
-      "--single-process",
+      // "--single-process",
       "--no-zygote",
-      `--proxy-server=http://${config.proxy.ip}:3128`,
+      // `--proxy-server=http://${config.proxy.ip}:3128`,
     ],
   });
 }
@@ -142,21 +142,21 @@ async function handleLineWebhook({ headers, body: reqBody }, redisClient) {
       switch (userInput) {
         case constants.RICH_MENU_ACTION.BUYSELL: {
           console.log("買賣查詢");
-          await redisClient.set(
-            `action-${userId}`,
-            constants.RICH_MENU_ACTION.BUYSELL,
-            { EX: config.redis.expireTime }
-          );
+          await redisClient
+            .set(`action-${userId}`, constants.RICH_MENU_ACTION.BUYSELL, {
+              EX: config.redis.expireTime,
+            })
+            .catch((e) => console.error(e));
           messageObjects = instruction.getBuysellActionInstruction();
           break;
         }
         case constants.RICH_MENU_ACTION.PRESALE: {
           console.log("預售屋查詢");
-          await redisClient.set(
-            `action-${userId}`,
-            constants.RICH_MENU_ACTION.PRESALE,
-            { EX: config.redis.expireTime }
-          );
+          await redisClient
+            .set(`action-${userId}`, constants.RICH_MENU_ACTION.PRESALE, {
+              EX: config.redis.expireTime,
+            })
+            .catch((e) => console.error(e));
           messageObjects = instruction.getPresaleActionInstruction();
           break;
         }
