@@ -178,23 +178,23 @@ async function visitSite(
     // headless: false,
     args: [
       "--no-sandbox",
-      "--single-process",
+      // "--single-process",
       "--no-zygote",
-      `--proxy-server=http://${config.proxy.ip}:3128`,
+      // `--proxy-server=http://${config.proxy.ip}:3128`,
     ],
     // executablePath: "/opt/homebrew/bin/chromium",
   });
   console.log("launch browser finish");
   const page = (await browser.pages())[0];
 
-  page.on("console", (msg) => console.log(msg.text()));
+  // page.on("console", (msg) => console.log(msg.text()));
 
   const DEFAULT_USER_AGENT =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.79 Safari/537.36";
   const userAgent = randomUseragent.getRandom();
   const UA = userAgent || DEFAULT_USER_AGENT;
 
-  let pageWidth = 395 + Math.floor(Math.random() * 30);
+  const pageWidth = 455 + Math.floor(Math.random() * 30);
   const pageHeight = 830 + Math.floor(Math.random() * 20);
   console.log(`pageWidth: ${pageWidth}, pageHeight: ${pageHeight}`);
   await page.setViewport({
@@ -218,7 +218,7 @@ async function visitSite(
   console.log("Visit site");
   await retry(
     () => page.goto("https://lvr.land.moi.gov.tw", { timeout: 6000 }),
-    2000,
+    3000,
     5
   );
   console.log("Start get data");
@@ -269,11 +269,16 @@ async function visitSite(
     const filterSearchButton = await frame.$(
       "div#QryPost1 button.btn.btn-full.form-button"
     );
-    await filterSearchButton.evaluate((b) => b.click());
+    await Promise.all([
+      frame.waitForNavigation(),
+      filterSearchButton.evaluate((b) => b.click()),
+    ]);
   } else {
-    await frame.click("a.btn.btn-a.form-button");
+    await Promise.all([
+      frame.waitForNavigation(),
+      frame.click("a.btn.btn-a.form-button"),
+    ]);
   }
-  await frame.waitForNavigation();
 
   await frame
     .waitForFunction(
@@ -330,8 +335,8 @@ async function visitSite(
       const thText = await caseDetailTr.$eval("th", (th) => th.innerText);
       if (thText.trim() === "備註:" || thText.trim() === "樓別/樓高:") {
         await caseDetailTr.$eval("td", (c) => {
-          if (c.innerText.length > 10) {
-            c.innerText = c.innerText.substring(0, 10) + "...";
+          if (c.innerText.length > 15) {
+            c.innerText = c.innerText.substring(0, 15) + "...";
           }
         });
       }

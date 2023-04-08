@@ -7,6 +7,8 @@ RUN apk add --no-cache chromium
 # seperate because font use edge/testing package
 RUN apk add wqy-zenhei --update-cache --repository http://nl.alpinelinux.org/alpine/edge/testing
 
+RUN apk --update add redis
+
 # Tell Puppeteer to skip installing Chrome. We'll be using the installed package.
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
@@ -24,3 +26,7 @@ RUN addgroup -S pptruser && adduser -S -G pptruser pptruser \
     && mkdir -p ./downloads && chown -R pptruser:pptruser ./downloads
 # Run everything after as non-privileged user.
 USER pptruser
+
+COPY src src
+
+CMD ["sh","-c","redis-server --daemonize yes --save ''; npm start;"]
